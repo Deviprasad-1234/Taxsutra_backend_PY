@@ -1,5 +1,23 @@
 [phases.setup]
-nixPkgs = ["chromium", "chromedriver"]
+nixPkgs = [
+  "chromium",
+  "chromedriver",
+  "libglib",
+  "nss",
+  "atk",
+  "atk-bridge",
+  "cups",
+  "libdrm",
+  "libxkbcommon",
+  "xcomposite",
+  "xdamage",
+  "xfixes",
+  "xrandr",
+  "gbm",
+  "pango",
+  "cairo",
+  "asound"
+]
 
 [start]
 cmd = "gunicorn app:app"
