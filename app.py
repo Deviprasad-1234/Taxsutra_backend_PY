@@ -48,20 +48,16 @@ def setup_google_sheet():
 # ---------------- CHROME DRIVER ----------------
 def get_driver():
     from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
 
     options = Options()
-
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument("--disable-software-rasterizer")
     options.add_argument("--remote-debugging-port=9222")
 
-    options.binary_location = "/usr/bin/chromium"
-
-    return webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=options)
+    # ❌ DO NOT hardcode paths
+    return webdriver.Chrome(options=options)
 
     except Exception as e:
         print("Driver Error:", e)
