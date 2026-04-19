@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify, render_template
+import bs4
+import requests
 import requests
 from bs4 import BeautifulSoup
 import gspread
@@ -8,6 +10,7 @@ import os
 import json
 
 app = Flask(__name__)
+print("🚀 APP STARTED")
 
 # ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
