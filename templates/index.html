@@ -9,21 +9,21 @@
 
 <form action="/run" method="post">
 
-    <label>Keyword:</label><br>
-    <input type="text" name="keyword"><br><br>
+    <label>Keyword:</label>
+    <input type="text" name="keyword" required><br><br>
 
-    <label>Start Date:</label><br>
-    <input type="text" name="start_date" placeholder="dd-mm-yyyy"><br><br>
+    <label>Start Date:</label>
+    <input type="text" name="start_date" placeholder="dd/mm/yyyy" required><br><br>
 
-    <label>End Date:</label><br>
-    <input type="text" name="end_date"><br><br>
+    <label>End Date:</label>
+    <input type="text" name="end_date" placeholder="dd/mm/yyyy" required><br><br>
 
-    <label>Industry:</label><br>
-    <select name="industries" multiple>
-        <option>IT & ITES</option>
-        <option>Banking and financial services</option>
-        <option>Automotive</option>
-        <option>Manufacturing</option>
+    <label>Industry:</label>
+    <select name="industries">
+        <option value="IT & ITES">IT & ITES</option>
+        <option value="Automotive">Automotive</option>
+        <option value="Banking and financial services">Banking</option>
+        <option value="Manufacturing">Manufacturing</option>
     </select><br><br>
 
     <button type="submit">Run RPA</button>

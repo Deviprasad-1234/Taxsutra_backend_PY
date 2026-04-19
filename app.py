@@ -1,4 +1,3 @@
-from flask import Flask, request, jsonify
 from flask import Flask, request, jsonify, render_template
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -15,11 +14,98 @@ app = Flask(__name__)
 
 # ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
-    "IT & ITES": 25585,
-    "Banking and financial services": 25557,
-    "Automotive": 25554,
-    "Manufacturing": 25591,
-    "E-Commerce": 25566
+  "Adhesives": 71768,
+  "Advisory / Consultancy": 50188,
+  "Agriculture, Agro Products and allied activities": 53163,
+  "Alcohol": 96297,
+  "Apparel, Garments, Fashion industry": 54200,
+  "Assembling": 89836,
+  "Automotive": 25554,
+  "Aviation": 25555,
+  "Banking and financial services": 25557,
+  "Boarding, Lodging and Hospitality": 25576,
+  "Books, Periodicals and Publications": 53519,
+  "BPO services": 88219,
+  "Business support services": 25559,
+  "Canteen services": 88283,
+  "Cement": 52893,
+  "Chartered Accountants": 76010,
+  "Chemicals": 50312,
+  "Clubs": 52890,
+  "Co-operative Society": 53792,
+  "Cosmetics": 54266,
+  "Dairy": 49819,
+  "Database": 52985,
+  "Defence equipments": 55588,
+  "Design and development": 71721,
+  "DTH": 89210,
+  "E-Commerce": 25566,
+  "Education and Training": 52337,
+  "Electronic and Electrical items": 52340,
+  "Engineering": 52468,
+  "Event management": 55689,
+  "FMCG": 52829,
+  "Food and Beverage": 49916,
+  "Forest and Plantation": 52949,
+  "Gaming": 25572,
+  "Gems & Jewellery": 25573,
+  "Glass": 52646,
+  "Government": 53592,
+  "Imports and Exports": 52195,
+  "Industrial Supplies": 52723,
+  "Infrastructure": 25579,
+  "Insurance": 25580,
+  "Investment": 44618,
+  "Irrigation": 52282,
+  "IT & ITES": 25585,
+  "Job work": 52885,
+  "Liquor": 53587,
+  "LLP/Partnership firm": 44715,
+  "Lottery": 52386,
+  "Manpower and Human resource": 52943,
+  "Manufacturing": 25591,
+  "Marketing support services": 25592,
+  "Media and Entertainment": 25593,
+  "Mining, Metals and Minerals": 49946,
+  "NBFC": 57183,
+  "Oil and gas": 52539,
+  "Others": 25597,
+  "Packaging": 53722,
+  "Paint": 52900,
+  "Paper": 52326,
+  "Pharma, Healthcare and Medical supplies": 57864,
+  "Plastic": 52285,
+  "Plywood": 55098,
+  "Ports": 56115,
+  "Poultry, Animal Husbandry, Fisheries": 53618,
+  "Power and energy": 52598,
+  "Printing": 93057,
+  "R&D": 94219,
+  "Railways": 52318,
+  "Real estate and construction": 52229,
+  "Religious institutions, Trusts, NGOs, Non-profit organisations, Charitable trusts": 52260,
+  "Renewable energy": 52434,
+  "Restaurant": 49951,
+  "Retail": 25604,
+  "Rubber": 56170,
+  "Sales": 92541,
+  "Scrap": 53893,
+  "Security": 54736,
+  "Service": 25606,
+  "Shipping": 25607,
+  "Space and Communications": 44487,
+  "Sports": 50358,
+  "Stationery": 56161,
+  "Steel": 56806,
+  "Telecom services": 25609,
+  "Textile": 25613,
+  "Tiles": 52402,
+  "Tobacco": 25614,
+  "Trading & Distribution": 25616,
+  "Transportation": 52923,
+  "Travel and Tourism": 25615,
+  "Warehousing, Logistics and Storage facilities": 25588,
+  "Waterway": 52585
 }
 
 # ---------------- GOOGLE SHEET ----------------
@@ -60,15 +146,6 @@ def build_url(keyword, start_date, end_date, industries):
 
     params = {
         "tp_ruling_search_api_fulltext": keyword,
-        "field_tax_payer_name_tp_target_id": "",
-        "field_judge_profile_tp_target_id": "",
-        "field_counsel_for_department_target_id": "",
-        "field_counsel_of_taxpayer_tp_target_id": "",
-        "field_section_no_under_income_target_id": "All",
-        "field_tp_citation_value": "",
-        "field_serial_value": "_none",
-        "field_applevel_value": "_none",
-        "field_year_value": "_none",
         "field_date_of_ruling_value": start_date,
         "field_date_of_ruling_value_1": end_date
     }
@@ -89,7 +166,6 @@ def run_rpa(keyword, start_date, end_date, industries):
     wait = WebDriverWait(driver, 20)
 
     try:
-        # LOGIN
         driver.get("https://www.taxsutra.com/user/login")
 
         wait.until(EC.presence_of_element_located((By.ID, "edit-name"))).send_keys("abhijeet.mane@pwandaffiliates.com")
@@ -104,12 +180,10 @@ def run_rpa(keyword, start_date, end_date, industries):
         except:
             pass
 
-        # FILTER URL
         url = build_url(keyword, start_date, end_date, industries)
         driver.get(url)
         time.sleep(5)
 
-        # LOAD MORE
         while True:
             try:
                 btn = wait.until(EC.element_to_be_clickable(
@@ -120,7 +194,6 @@ def run_rpa(keyword, start_date, end_date, industries):
             except:
                 break
 
-        # EXTRACT
         cards = driver.find_elements(
             By.XPATH,
             '//*[@id="block-taxsutra-digital-content"]//div[contains(@class,"views-row")]'
@@ -136,40 +209,20 @@ def run_rpa(keyword, start_date, end_date, industries):
 
             try:
                 case_el = card.find_element(By.XPATH, './/h3/a')
-                case_name = case_el.text.strip()
                 link = case_el.get_attribute("href")
 
-                try:
-                    citation = card.find_element(By.XPATH, './/ul/li[2]').text.strip()
-                except:
-                    citation = "NA"
+                citation = card.find_element(By.XPATH, './/ul/li[2]').text.strip()
+                taxpayer = card.find_element(By.XPATH, './/ul/li[3]').text.strip()
+                date = card.find_element(By.XPATH, './/div').text.strip()
 
-                try:
-                    taxpayer = card.find_element(By.XPATH, './/ul/li[3]').text.strip()
-                except:
-                    taxpayer = case_name
-
-                try:
-                    date = card.find_element(By.XPATH, './/div').text.strip()
-                except:
-                    date = "NA"
-
-                sheet.append_row([
-                    taxpayer,
-                    citation,
-                    date,
-                    link
-                ])
+                sheet.append_row([taxpayer, citation, date, link])
 
                 count += 1
 
-            except Exception as e:
-                print("Error:", e)
+            except:
+                continue
 
-        return {
-            "status": "success",
-            "rows_added": count
-        }
+        return {"status": "success", "rows_added": count}
 
     finally:
         driver.quit()
@@ -182,16 +235,24 @@ def home():
 @app.route("/run", methods=["GET", "POST"])
 def run():
     if request.method == "GET":
-        return "Use POST request to run automation"
+        return "Use POST request"
 
-    data = request.get_json()
+    # 🔥 FIX FOR FORM + JSON
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form
 
-    result = run_rpa(
-        data["keyword"],
-        data["start_date"],
-        data["end_date"],
-        data["industries"]
-    )
+    keyword = data.get("keyword")
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+
+    industries = data.get("industries")
+
+    if isinstance(industries, str):
+        industries = [industries]
+
+    result = run_rpa(keyword, start_date, end_date, industries)
 
     return jsonify(result)
 
