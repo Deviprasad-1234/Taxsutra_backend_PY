@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TaxSutra TP Scout</title>
+</head>
+<body>
+
+<h2>TaxSutra TP Scout</h2>
+
+<form action="http://localhost:5000/run" method="post">
+
+    <label>Keyword:</label><br>
+    <input type="text" name="keyword"><br><br>
+
+    <label>Start Date:</label><br>
+    <input type="text" name="start_date" placeholder="dd-mm-yyyy"><br><br>
+
+    <label>End Date:</label><br>
+    <input type="text" name="end_date"><br><br>
+
+    <label>Industry:</label><br>
+    <select name="industries" multiple>
+        <option>IT & ITES</option>
+        <option>Banking and financial services</option>
+        <option>Automotive</option>
+        <option>Manufacturing</option>
+    </select><br><br>
+
+    <button type="submit">Run RPA</button>
+
+</form>
+
+</body>
+</html>
