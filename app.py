@@ -24,26 +24,44 @@ INDUSTRY_MAP = {
 # ---------------- GOOGLE SHEET ----------------
 def setup_google_sheet():
     try:
+        print("🔍 Checking GOOGLE_CREDS...")
+
+        raw = os.environ.get("GOOGLE_CREDS")
+
+        if not raw:
+            print("❌ GOOGLE_CREDS not found")
+            return None
+
+        print("✅ GOOGLE_CREDS found")
+
+        creds_dict = json.loads(raw)
+
+        print("✅ JSON loaded")
+
         scope = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
 
-        creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 
+        print("✅ Credentials created")
+
         client = gspread.authorize(creds)
+
+        print("✅ gspread authorized")
 
         sheet = client.open_by_url(
             "https://docs.google.com/spreadsheets/d/1umYaxUBQawVIBemC7KT1LrM3RrbJ66aEqLnn0GhqF5I"
         ).sheet1
 
+        print("✅ SHEET CONNECTED SUCCESSFULLY")
+
         return sheet
 
     except Exception as e:
-        print("Google Sheet Error:", e)
+        print("❌ GOOGLE SHEET ERROR:", str(e))
         return None
-
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
 
