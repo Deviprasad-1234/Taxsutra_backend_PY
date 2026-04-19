@@ -21,14 +21,13 @@ INDUSTRY_MAP = {
     "E-Commerce": 25566
 }
 
-# ---------------- GOOGLE SHEETS ----------------
+# ---------------- GOOGLE SHEET ----------------
 def setup_google_sheet():
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
 
-    # 🔥 Load from ENV (Railway)
     creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 
@@ -40,21 +39,18 @@ def setup_google_sheet():
 
     return sheet
 
-# ---------------- CHROME DRIVER (RAILWAY FIX) ----------------
+# ---------------- CHROME DRIVER ----------------
 def get_driver():
     from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
 
-    chrome_options = Options()
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
 
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
-
-    # Railway auto-detects chrome
-    return webdriver.Chrome(options=chrome_options)
+    return webdriver.Chrome(options=options)
 
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
@@ -92,7 +88,7 @@ def run_rpa(keyword, start_date, end_date, industries):
     wait = WebDriverWait(driver, 20)
 
     try:
-        # ---------------- LOGIN ----------------
+        # LOGIN
         driver.get("https://www.taxsutra.com/user/login")
 
         wait.until(EC.presence_of_element_located((By.ID, "edit-name"))).send_keys("abhijeet.mane@pwandaffiliates.com")
@@ -107,14 +103,12 @@ def run_rpa(keyword, start_date, end_date, industries):
         except:
             pass
 
-        print("✅ Login successful")
-
-        # ---------------- FILTER URL ----------------
+        # FILTER URL
         url = build_url(keyword, start_date, end_date, industries)
         driver.get(url)
         time.sleep(5)
 
-        # ---------------- LOAD MORE ----------------
+        # LOAD MORE
         while True:
             try:
                 btn = wait.until(EC.element_to_be_clickable(
@@ -125,9 +119,7 @@ def run_rpa(keyword, start_date, end_date, industries):
             except:
                 break
 
-        print("📄 All results loaded")
-
-        # ---------------- EXTRACT ----------------
+        # EXTRACT
         cards = driver.find_elements(
             By.XPATH,
             '//*[@id="block-taxsutra-digital-content"]//div[contains(@class,"views-row")]'
@@ -173,18 +165,24 @@ def run_rpa(keyword, start_date, end_date, industries):
             except Exception as e:
                 print("Error:", e)
 
-        return {"status": "success", "rows_added": count}
+        return {
+            "status": "success",
+            "rows_added": count
+        }
 
     finally:
         driver.quit()
 
-# ---------------- API ----------------
+# ---------------- ROUTES ----------------
 @app.route("/")
 def home():
     return "✅ Railway backend running"
 
-@app.route("/run", methods=["POST"])
+@app.route("/run", methods=["GET", "POST"])
 def run():
+    if request.method == "GET":
+        return "Use POST request to run automation"
+
     data = request.get_json()
 
     result = run_rpa(
