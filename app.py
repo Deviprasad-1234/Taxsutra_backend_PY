@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -176,7 +177,7 @@ def run_rpa(keyword, start_date, end_date, industries):
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return "✅ Railway backend running"
+    return render_template("index.html")
 
 @app.route("/run", methods=["GET", "POST"])
 def run():
