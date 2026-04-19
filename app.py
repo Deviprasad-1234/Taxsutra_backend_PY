@@ -1,93 +1,137 @@
-from flask import Flask, request, jsonify, render_template
-import bs4
-import requests
+from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
-import gspread
-from google.oauth2.service_account import Credentials
 import urllib.parse
-import os
-import json
 
 app = Flask(__name__)
-print("🚀 APP STARTED")
 
 # ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
-    "IT & ITES": 25585,
-    "Banking and financial services": 25557,
+    "Adhesives": 71768,
+    "Advisory / Consultancy": 50188,
+    "Agriculture, Agro Products and allied activities": 53163,
+    "Alcohol": 96297,
+    "Apparel, Garments, Fashion industry": 54200,
+    "Assembling": 89836,
     "Automotive": 25554,
+    "Aviation": 25555,
+    "Banking and financial services": 25557,
+    "Boarding, Lodging and Hospitality": 25576,
+    "Books, Periodicals and Publications": 53519,
+    "BPO services": 88219,
+    "Business support services": 25559,
+    "Canteen services": 88283,
+    "Cement": 52893,
+    "Chartered Accountants": 76010,
+    "Chemicals": 50312,
+    "Clubs": 52890,
+    "Co-operative Society": 53792,
+    "Cosmetics": 54266,
+    "Dairy": 49819,
+    "Database": 52985,
+    "Defence equipments": 55588,
+    "Design and development": 71721,
+    "DTH": 89210,
+    "E-Commerce": 25566,
+    "Education and Training": 52337,
+    "Electronic and Electrical items": 52340,
+    "Engineering": 52468,
+    "Event management": 55689,
+    "FMCG": 52829,
+    "Food and Beverage": 49916,
+    "Forest and Plantation": 52949,
+    "Gaming": 25572,
+    "Gems & Jewellery": 25573,
+    "Glass": 52646,
+    "Government": 53592,
+    "Imports and Exports": 52195,
+    "Industrial Supplies": 52723,
+    "Infrastructure": 25579,
+    "Insurance": 25580,
+    "Investment": 44618,
+    "Irrigation": 52282,
+    "IT & ITES": 25585,
+    "Job work": 52885,
+    "Liquor": 53587,
+    "LLP/Partnership firm": 44715,
+    "Lottery": 52386,
+    "Manpower and Human resource": 52943,
     "Manufacturing": 25591,
-    "E-Commerce": 25566
+    "Marketing support services": 25592,
+    "Media and Entertainment": 25593,
+    "Mining, Metals and Minerals": 49946,
+    "NBFC": 57183,
+    "Oil and gas": 52539,
+    "Others": 25597,
+    "Packaging": 53722,
+    "Paint": 52900,
+    "Paper": 52326,
+    "Pharma, Healthcare and Medical supplies": 57864,
+    "Plastic": 52285,
+    "Plywood": 55098,
+    "Ports": 56115,
+    "Poultry, Animal Husbandry, Fisheries": 53618,
+    "Power and energy": 52598,
+    "Printing": 93057,
+    "R&D": 94219,
+    "Railways": 52318,
+    "Real estate and construction": 52229,
+    "Religious institutions, Trusts, NGOs, Non-profit organisations, Charitable trusts": 52260,
+    "Renewable energy": 52434,
+    "Restaurant": 49951,
+    "Retail": 25604,
+    "Rubber": 56170,
+    "Sales": 92541,
+    "Scrap": 53893,
+    "Security": 54736,
+    "Service": 25606,
+    "Shipping": 25607,
+    "Space and Communications": 44487,
+    "Sports": 50358,
+    "Stationery": 56161,
+    "Steel": 56806,
+    "Telecom services": 25609,
+    "Textile": 25613,
+    "Tiles": 52402,
+    "Tobacco": 25614,
+    "Trading & Distribution": 25616,
+    "Transportation": 52923,
+    "Travel and Tourism": 25615,
+    "Warehousing, Logistics and Storage facilities": 25588,
+    "Waterway": 52585
 }
 
-# ---------------- GOOGLE SHEET ----------------
-def setup_google_sheet():
-    try:
-        print("🔍 Checking GOOGLE_CREDS...")
-
-        raw = os.environ.get("GOOGLE_CREDS")
-
-        if not raw:
-            print("❌ GOOGLE_CREDS not found")
-            return None
-
-        print("✅ GOOGLE_CREDS found")
-
-        creds_dict = json.loads(raw)
-
-        print("✅ JSON loaded")
-
-        scope = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-
-        print("✅ Credentials created")
-
-        client = gspread.authorize(creds)
-
-        print("✅ gspread authorized")
-
-        sheet = client.open_by_url(
-            "https://docs.google.com/spreadsheets/d/1umYaxUBQawVIBemC7KT1LrM3RrbJ66aEqLnn0GhqF5I"
-        ).sheet1
-
-        print("✅ SHEET CONNECTED SUCCESSFULLY")
-
-        return sheet
-
-    except Exception as e:
-        print("❌ GOOGLE SHEET ERROR:", str(e))
-        return None
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
-
     base_url = "https://www.taxsutra.com/tp/alert-rulings?"
 
-    params = {
-        "tp_ruling_search_api_fulltext": keyword,
-        "field_date_of_ruling_value": start_date,
-        "field_date_of_ruling_value_1": end_date
-    }
+    params = {}
+
+    # Optional keyword
+    if keyword:
+        params["tp_ruling_search_api_fulltext"] = keyword
+
+    # Optional dates
+    if start_date:
+        params["field_date_of_ruling_value"] = start_date
+    if end_date:
+        params["field_date_of_ruling_value_1"] = end_date
 
     url = base_url + urllib.parse.urlencode(params)
 
-    for ind in industries:
-        ind_id = INDUSTRY_MAP.get(ind)
-        if ind_id:
-            url += f"&field_industry_target_id%5B{ind_id}%5D={ind_id}"
+    # Optional industries (single/multiple)
+    if industries:
+        for ind in industries:
+            ind_id = INDUSTRY_MAP.get(ind)
+            if ind_id:
+                url += f"&field_industry_target_id%5B{ind_id}%5D={ind_id}"
 
     return url
 
 # ---------------- MAIN SCRAPER ----------------
 def run_rpa(keyword, start_date, end_date, industries):
-
     try:
         url = build_url(keyword, start_date, end_date, industries)
-        print("Fetching URL:", url)
 
         headers = {
             "User-Agent": "Mozilla/5.0"
@@ -98,12 +142,7 @@ def run_rpa(keyword, start_date, end_date, industries):
 
         cards = soup.select("div.views-row")
 
-        sheet = setup_google_sheet()
-
-        if not sheet:
-            return {"error": "Google Sheet not connected"}
-
-        count = 0
+        results = []
 
         for card in cards[:15]:
             try:
@@ -117,49 +156,59 @@ def run_rpa(keyword, start_date, end_date, industries):
 
                 date = card.select_one("div").text.strip()
 
-                sheet.append_row([taxpayer, citation, date, link])
+                results.append({
+                    "taxpayer": taxpayer,
+                    "citation": citation,
+                    "date": date,
+                    "link": link
+                })
 
-                count += 1
+            except:
+                continue
 
-            except Exception as e:
-                print("Row error:", e)
-
-        return {"status": "success", "rows_added": count}
+        return {
+            "status": "success",
+            "count": len(results),
+            "data": results
+        }
 
     except Exception as e:
-        print("Main error:", e)
-        return {"error": str(e)}
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return "TaxSutra Backend Running 🚀"
 
-@app.route("/run", methods=["GET", "POST"])
+@app.route("/run", methods=["POST"])
 def run():
     try:
-        if request.method == "GET":
-            return "Use POST request"
+        data = request.get_json(silent=True) or request.form
 
-        if request.is_json:
-            data = request.get_json()
-        else:
-            data = request.form
+        keyword = data.get("keyword", "").strip()
+        start_date = data.get("start_date", "").strip()
+        end_date = data.get("end_date", "").strip()
 
-        keyword = data.get("keyword", "")
-        start_date = data.get("start_date", "")
-        end_date = data.get("end_date", "")
         industries = data.get("industries", [])
 
+        # Handle all cases: none / single / multiple
         if isinstance(industries, str):
             industries = [industries]
+        elif not industries:
+            industries = []
 
         result = run_rpa(keyword, start_date, end_date, industries)
 
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
 
 # ---------------- START ----------------
 if __name__ == "__main__":
