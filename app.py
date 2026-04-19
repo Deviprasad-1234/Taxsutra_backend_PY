@@ -3,6 +3,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 import time
 import gspread
 from google.oauth2.service_account import Credentials
@@ -14,98 +15,11 @@ app = Flask(__name__)
 
 # ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
-  "Adhesives": 71768,
-  "Advisory / Consultancy": 50188,
-  "Agriculture, Agro Products and allied activities": 53163,
-  "Alcohol": 96297,
-  "Apparel, Garments, Fashion industry": 54200,
-  "Assembling": 89836,
-  "Automotive": 25554,
-  "Aviation": 25555,
-  "Banking and financial services": 25557,
-  "Boarding, Lodging and Hospitality": 25576,
-  "Books, Periodicals and Publications": 53519,
-  "BPO services": 88219,
-  "Business support services": 25559,
-  "Canteen services": 88283,
-  "Cement": 52893,
-  "Chartered Accountants": 76010,
-  "Chemicals": 50312,
-  "Clubs": 52890,
-  "Co-operative Society": 53792,
-  "Cosmetics": 54266,
-  "Dairy": 49819,
-  "Database": 52985,
-  "Defence equipments": 55588,
-  "Design and development": 71721,
-  "DTH": 89210,
-  "E-Commerce": 25566,
-  "Education and Training": 52337,
-  "Electronic and Electrical items": 52340,
-  "Engineering": 52468,
-  "Event management": 55689,
-  "FMCG": 52829,
-  "Food and Beverage": 49916,
-  "Forest and Plantation": 52949,
-  "Gaming": 25572,
-  "Gems & Jewellery": 25573,
-  "Glass": 52646,
-  "Government": 53592,
-  "Imports and Exports": 52195,
-  "Industrial Supplies": 52723,
-  "Infrastructure": 25579,
-  "Insurance": 25580,
-  "Investment": 44618,
-  "Irrigation": 52282,
-  "IT & ITES": 25585,
-  "Job work": 52885,
-  "Liquor": 53587,
-  "LLP/Partnership firm": 44715,
-  "Lottery": 52386,
-  "Manpower and Human resource": 52943,
-  "Manufacturing": 25591,
-  "Marketing support services": 25592,
-  "Media and Entertainment": 25593,
-  "Mining, Metals and Minerals": 49946,
-  "NBFC": 57183,
-  "Oil and gas": 52539,
-  "Others": 25597,
-  "Packaging": 53722,
-  "Paint": 52900,
-  "Paper": 52326,
-  "Pharma, Healthcare and Medical supplies": 57864,
-  "Plastic": 52285,
-  "Plywood": 55098,
-  "Ports": 56115,
-  "Poultry, Animal Husbandry, Fisheries": 53618,
-  "Power and energy": 52598,
-  "Printing": 93057,
-  "R&D": 94219,
-  "Railways": 52318,
-  "Real estate and construction": 52229,
-  "Religious institutions, Trusts, NGOs, Non-profit organisations, Charitable trusts": 52260,
-  "Renewable energy": 52434,
-  "Restaurant": 49951,
-  "Retail": 25604,
-  "Rubber": 56170,
-  "Sales": 92541,
-  "Scrap": 53893,
-  "Security": 54736,
-  "Service": 25606,
-  "Shipping": 25607,
-  "Space and Communications": 44487,
-  "Sports": 50358,
-  "Stationery": 56161,
-  "Steel": 56806,
-  "Telecom services": 25609,
-  "Textile": 25613,
-  "Tiles": 52402,
-  "Tobacco": 25614,
-  "Trading & Distribution": 25616,
-  "Transportation": 52923,
-  "Travel and Tourism": 25615,
-  "Warehousing, Logistics and Storage facilities": 25588,
-  "Waterway": 52585
+    "IT & ITES": 25585,
+    "Banking and financial services": 25557,
+    "Automotive": 25554,
+    "Manufacturing": 25591,
+    "E-Commerce": 25566
 }
 
 # ---------------- GOOGLE SHEET ----------------
@@ -115,29 +29,39 @@ def setup_google_sheet():
         "https://www.googleapis.com/auth/drive"
     ]
 
-    creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    try:
+        creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 
-    client = gspread.authorize(creds)
+        client = gspread.authorize(creds)
 
-    sheet = client.open_by_url(
-        "https://docs.google.com/spreadsheets/d/1umYaxUBQawVIBemC7KT1LrM3RrbJ66aEqLnn0GhqF5I"
-    ).sheet1
+        sheet = client.open_by_url(
+            "https://docs.google.com/spreadsheets/d/1umYaxUBQawVIBemC7KT1LrM3RrbJ66aEqLnn0GhqF5I"
+        ).sheet1
 
-    return sheet
+        return sheet
+
+    except Exception as e:
+        print("Google Sheet Error:", e)
+        return None
 
 # ---------------- CHROME DRIVER ----------------
 def get_driver():
-    from selenium.webdriver.chrome.options import Options
+    try:
+        from selenium.webdriver.chrome.options import Options
 
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
 
-    return webdriver.Chrome(options=options)
+        return webdriver.Chrome(service=Service(), options=options)
+
+    except Exception as e:
+        print("Driver Error:", e)
+        raise e
 
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
@@ -163,9 +87,11 @@ def build_url(keyword, start_date, end_date, industries):
 def run_rpa(keyword, start_date, end_date, industries):
 
     driver = get_driver()
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 30)
 
     try:
+        print("Starting login...")
+
         driver.get("https://www.taxsutra.com/user/login")
 
         wait.until(EC.presence_of_element_located((By.ID, "edit-name"))).send_keys("abhijeet.mane@pwandaffiliates.com")
@@ -180,10 +106,15 @@ def run_rpa(keyword, start_date, end_date, industries):
         except:
             pass
 
+        print("Login successful")
+
         url = build_url(keyword, start_date, end_date, industries)
+        print("Opening URL:", url)
+
         driver.get(url)
         time.sleep(5)
 
+        # LOAD MORE
         while True:
             try:
                 btn = wait.until(EC.element_to_be_clickable(
@@ -194,12 +125,17 @@ def run_rpa(keyword, start_date, end_date, industries):
             except:
                 break
 
+        print("Loaded all results")
+
         cards = driver.find_elements(
             By.XPATH,
             '//*[@id="block-taxsutra-digital-content"]//div[contains(@class,"views-row")]'
         )
 
         sheet = setup_google_sheet()
+
+        if not sheet:
+            return {"error": "Google Sheet not connected"}
 
         count = 0
 
@@ -211,18 +147,33 @@ def run_rpa(keyword, start_date, end_date, industries):
                 case_el = card.find_element(By.XPATH, './/h3/a')
                 link = case_el.get_attribute("href")
 
-                citation = card.find_element(By.XPATH, './/ul/li[2]').text.strip()
-                taxpayer = card.find_element(By.XPATH, './/ul/li[3]').text.strip()
-                date = card.find_element(By.XPATH, './/div').text.strip()
+                try:
+                    citation = card.find_element(By.XPATH, './/ul/li[2]').text.strip()
+                except:
+                    citation = "NA"
+
+                try:
+                    taxpayer = card.find_element(By.XPATH, './/ul/li[3]').text.strip()
+                except:
+                    taxpayer = "NA"
+
+                try:
+                    date = card.find_element(By.XPATH, './/div').text.strip()
+                except:
+                    date = "NA"
 
                 sheet.append_row([taxpayer, citation, date, link])
 
                 count += 1
 
-            except:
-                continue
+            except Exception as e:
+                print("Row Error:", e)
 
         return {"status": "success", "rows_added": count}
+
+    except Exception as e:
+        print("RPA Error:", e)
+        return {"error": str(e)}
 
     finally:
         driver.quit()
@@ -234,27 +185,32 @@ def home():
 
 @app.route("/run", methods=["GET", "POST"])
 def run():
-    if request.method == "GET":
-        return "Use POST request"
+    try:
+        if request.method == "GET":
+            return "Use POST request"
 
-    # 🔥 FIX FOR FORM + JSON
-    if request.is_json:
-        data = request.get_json()
-    else:
-        data = request.form
+        # Handle JSON + FORM
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
 
-    keyword = data.get("keyword")
-    start_date = data.get("start_date")
-    end_date = data.get("end_date")
+        print("Received:", data)
 
-    industries = data.get("industries")
+        keyword = data.get("keyword", "")
+        start_date = data.get("start_date", "")
+        end_date = data.get("end_date", "")
+        industries = data.get("industries", [])
 
-    if isinstance(industries, str):
-        industries = [industries]
+        if isinstance(industries, str):
+            industries = [industries]
 
-    result = run_rpa(keyword, start_date, end_date, industries)
+        result = run_rpa(keyword, start_date, end_date, industries)
 
-    return jsonify(result)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 # ---------------- START ----------------
 if __name__ == "__main__":
