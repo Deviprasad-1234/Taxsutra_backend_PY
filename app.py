@@ -2,10 +2,11 @@ from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+import re
 
 app = Flask(__name__)
 
-# ---------------- INDUSTRY MAP ----------------
+# ---------------- FULL INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
     "Adhesives": 71768,
     "Advisory / Consultancy": 50188,
@@ -124,38 +125,39 @@ def build_url(keyword, start_date, end_date, industries):
     return url
 
 
-# ---------------- PDF LINK FIX ----------------
+# ---------------- PDF LINK ----------------
 def extract_pdf_link(html):
     soup = BeautifulSoup(html, "html.parser")
 
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        text = a.text.lower()
-
-        if "download" in text and "judgement" in text:
-            if href.startswith("http"):
-                return href
-            return "https://www.taxsutra.com" + href
-
         if "/download/attachment" in href:
-            if href.startswith("http"):
-                return href
             return "https://www.taxsutra.com" + href
+
+    match = re.search(r'/download/attachment/\d+/\d+', html)
+    if match:
+        return "https://www.taxsutra.com" + match.group()
 
     return ""
+
+
+# ---------------- DATE ----------------
+def extract_date(html):
+    match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}', html)
+    return match.group() if match else "NA"
 
 
 # ---------------- MAIN ----------------
 def run_rpa(keyword, start_date, end_date, industries):
     headers = {"User-Agent": "Mozilla/5.0"}
-    url = build_url(keyword, start_date, end_date, industries)
 
+    url = build_url(keyword, start_date, end_date, industries)
     response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
 
     cards = soup.select("div.views-row")
-    results = []
 
+    results = []
     limit = 15 if len(cards) > 15 else len(cards)
 
     for card in cards[:limit]:
@@ -165,23 +167,14 @@ def run_rpa(keyword, start_date, end_date, industries):
 
             li_items = card.select("ul li")
 
-            # ✅ DATE FIX (robust)
-            date = "NA"
-            for li in li_items:
-                txt = li.text.strip()
-                if any(m in txt for m in ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]):
-                    date = txt
-                    break
-
-            # ✅ CITATION
             citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
-
-            # ✅ TAXPAYER CLEAN
             taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
 
-            # CASE PAGE FETCH
             case_page = requests.get(link, headers=headers)
-            pdf_link = extract_pdf_link(case_page.text)
+            html = case_page.text
+
+            pdf_link = extract_pdf_link(html)
+            date = extract_date(html)
 
             results.append({
                 "taxpayer": taxpayer,
@@ -205,23 +198,20 @@ def run_rpa(keyword, start_date, end_date, industries):
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return "TaxSutra Backend Running 🚀"
+    return "Backend Running 🚀"
 
 
 @app.route("/run", methods=["POST"])
 def run():
     data = request.get_json(silent=True) or request.form
 
-    keyword = data.get("keyword", "").strip()
-    start_date = data.get("start_date", "").strip()
-    end_date = data.get("end_date", "").strip()
-
+    keyword = data.get("keyword", "")
+    start_date = data.get("start_date", "")
+    end_date = data.get("end_date", "")
     industries = data.get("industries", [])
 
     if isinstance(industries, str):
         industries = [industries]
-    elif not industries:
-        industries = []
 
     result = run_rpa(keyword, start_date, end_date, industries)
 
