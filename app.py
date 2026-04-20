@@ -4,125 +4,41 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import re
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 
-# ---------------- FULL INDUSTRY MAP ----------------
+# ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
-    "Adhesives": 71768,
-    "Advisory / Consultancy": 50188,
-    "Agriculture, Agro Products and allied activities": 53163,
-    "Alcohol": 96297,
-    "Apparel, Garments, Fashion industry": 54200,
-    "Assembling": 89836,
-    "Automotive": 25554,
-    "Aviation": 25555,
-    "Banking and financial services": 25557,
-    "Boarding, Lodging and Hospitality": 25576,
-    "Books, Periodicals and Publications": 53519,
-    "BPO services": 88219,
-    "Business support services": 25559,
-    "Canteen services": 88283,
-    "Cement": 52893,
-    "Chartered Accountants": 76010,
-    "Chemicals": 50312,
-    "Clubs": 52890,
-    "Co-operative Society": 53792,
-    "Cosmetics": 54266,
-    "Dairy": 49819,
-    "Database": 52985,
-    "Defence equipments": 55588,
-    "Design and development": 71721,
-    "DTH": 89210,
-    "E-Commerce": 25566,
-    "Education and Training": 52337,
-    "Electronic and Electrical items": 52340,
-    "Engineering": 52468,
-    "Event management": 55689,
-    "FMCG": 52829,
-    "Food and Beverage": 49916,
-    "Forest and Plantation": 52949,
-    "Gaming": 25572,
-    "Gems & Jewellery": 25573,
-    "Glass": 52646,
-    "Government": 53592,
-    "Imports and Exports": 52195,
-    "Industrial Supplies": 52723,
-    "Infrastructure": 25579,
-    "Insurance": 25580,
-    "Investment": 44618,
-    "Irrigation": 52282,
     "IT & ITES": 25585,
-    "Job work": 52885,
-    "Liquor": 53587,
-    "LLP/Partnership firm": 44715,
-    "Lottery": 52386,
-    "Manpower and Human resource": 52943,
+    "Automotive": 25554,
+    "Banking and financial services": 25557,
     "Manufacturing": 25591,
-    "Marketing support services": 25592,
-    "Media and Entertainment": 25593,
-    "Mining, Metals and Minerals": 49946,
-    "NBFC": 57183,
-    "Oil and gas": 52539,
-    "Others": 25597,
-    "Packaging": 53722,
-    "Paint": 52900,
-    "Paper": 52326,
-    "Pharma, Healthcare and Medical supplies": 57864,
-    "Plastic": 52285,
-    "Plywood": 55098,
-    "Ports": 56115,
-    "Poultry, Animal Husbandry, Fisheries": 53618,
-    "Power and energy": 52598,
-    "Printing": 93057,
-    "R&D": 94219,
-    "Railways": 52318,
-    "Real estate and construction": 52229,
-    "Religious institutions, Trusts, NGOs, Non-profit organisations, Charitable trusts": 52260,
-    "Renewable energy": 52434,
-    "Restaurant": 49951,
-    "Retail": 25604,
-    "Rubber": 56170,
-    "Sales": 92541,
-    "Scrap": 53893,
-    "Security": 54736,
-    "Service": 25606,
-    "Shipping": 25607,
-    "Space and Communications": 44487,
-    "Sports": 50358,
-    "Stationery": 56161,
-    "Steel": 56806,
-    "Telecom services": 25609,
-    "Textile": 25613,
-    "Tiles": 52402,
-    "Tobacco": 25614,
-    "Trading & Distribution": 25616,
-    "Transportation": 52923,
-    "Travel and Tourism": 25615,
-    "Warehousing, Logistics and Storage facilities": 25588,
-    "Waterway": 52585
+    "Others": 25597
 }
 
-# ---------------- LOGIN SESSION ----------------
+# ---------------- LOGIN ----------------
 def login_session():
     session = requests.Session()
 
-    login_url = "https://www.taxsutra.com/user/login"
-
-    payload = {
-        "name": os.getenv("TAXSUTRA_EMAIL"),
-        "pass": os.getenv("TAXSUTRA_PASSWORD"),
-        "form_id": "user_login_form"
-    }
-
-    headers = {"User-Agent": "Mozilla/5.0"}
-
-    session.post(login_url, data=payload, headers=headers)
+    try:
+        session.post(
+            "https://www.taxsutra.com/user/login",
+            data={
+                "name": os.getenv("TAXSUTRA_EMAIL"),
+                "pass": os.getenv("TAXSUTRA_PASSWORD"),
+                "form_id": "user_login_form"
+            },
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15
+        )
+    except Exception as e:
+        print("Login failed:", e)
 
     return session
 
 
-# ---------------- BUILD URL ----------------
+# ---------------- URL BUILDER ----------------
 def build_url(keyword, start_date, end_date, industries):
     base_url = "https://www.taxsutra.com/tp/alert-rulings?"
     params = {}
@@ -138,25 +54,47 @@ def build_url(keyword, start_date, end_date, industries):
 
     if industries:
         for ind in industries:
-            ind_id = INDUSTRY_MAP.get(ind)
-            if ind_id:
-                url += f"&field_industry_target_id%5B{ind_id}%5D={ind_id}"
+            if ind in INDUSTRY_MAP:
+                val = INDUSTRY_MAP[ind]
+                url += f"&field_industry_target_id%5B{val}%5D={val}"
 
     return url
 
 
-# ---------------- PDF LINK ----------------
-def extract_pdf_link(html):
-    matches = re.findall(r'/download/attachment/\d+/\d+', html)
-    if matches:
-        return "https://www.taxsutra.com" + matches[0]
-    return ""
+# ---------------- PROCESS EACH CASE ----------------
+def process_case(session, card, headers):
+    try:
+        case = card.select_one("h3 a")
+        link = "https://www.taxsutra.com" + case["href"]
 
+        li_items = card.select("ul li")
 
-# ---------------- DATE ----------------
-def extract_date(html):
-    match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}', html)
-    return match.group() if match else "NA"
+        citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
+        taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
+
+        # 🔥 Open case page
+        res = session.get(link, headers=headers, timeout=15)
+        html = res.text
+
+        # 🔥 Extract PDF LINK
+        match = re.findall(r'/download/attachment/\d+/\d+', html)
+        pdf_link = "https://www.taxsutra.com" + match[0] if match else ""
+
+        # 🔥 Extract DATE
+        date_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}', html)
+        date = date_match.group() if date_match else "NA"
+
+        return {
+            "taxpayer": taxpayer,
+            "citation": citation,
+            "date": date,
+            "case_link": link,
+            "pdf_link": pdf_link
+        }
+
+    except Exception as e:
+        print("Error in case:", e)
+        return None
 
 
 # ---------------- MAIN ----------------
@@ -167,41 +105,24 @@ def run_rpa(keyword, start_date, end_date, industries):
 
     url = build_url(keyword, start_date, end_date, industries)
 
-    response = session.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
+    res = session.get(url, headers=headers, timeout=15)
+    soup = BeautifulSoup(res.text, "html.parser")
 
     cards = soup.select("div.views-row")
 
-    results = []
     limit = 15 if len(cards) > 15 else len(cards)
+    cards = cards[:limit]
 
-    for card in cards[:limit]:
-        try:
-            case = card.select_one("h3 a")
-            link = "https://www.taxsutra.com" + case["href"]
+    results = []
 
-            li_items = card.select("ul li")
+    # 🚀 MULTITHREADING (FAST FIX)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(process_case, session, c, headers) for c in cards]
 
-            citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
-            taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
-
-            case_page = session.get(link, headers=headers)
-            html = case_page.text
-
-            pdf_link = extract_pdf_link(html)
-            date = extract_date(html)
-
-            results.append({
-                "taxpayer": taxpayer,
-                "citation": citation,
-                "date": date,
-                "case_link": link,
-                "pdf_link": pdf_link
-            })
-
-        except Exception as e:
-            print("Error:", e)
-            continue
+        for f in as_completed(futures):
+            result = f.result()
+            if result:
+                results.append(result)
 
     return {
         "status": "success",
@@ -218,19 +139,26 @@ def home():
 
 @app.route("/run", methods=["POST"])
 def run():
-    data = request.get_json(silent=True) or request.form
+    try:
+        data = request.get_json(silent=True) or request.form
 
-    keyword = data.get("keyword", "")
-    start_date = data.get("start_date", "")
-    end_date = data.get("end_date", "")
-    industries = data.get("industries", [])
+        keyword = data.get("keyword", "")
+        start_date = data.get("start_date", "")
+        end_date = data.get("end_date", "")
+        industries = data.get("industries", [])
 
-    if isinstance(industries, str):
-        industries = [industries]
+        if isinstance(industries, str):
+            industries = [industries]
 
-    result = run_rpa(keyword, start_date, end_date, industries)
+        result = run_rpa(keyword, start_date, end_date, industries)
 
-    return jsonify(result)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 
 # ---------------- RUN ----------------
