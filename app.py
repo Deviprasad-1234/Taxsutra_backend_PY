@@ -131,13 +131,11 @@ def extract_pdf_link(html):
     for a in soup.find_all("a", href=True):
         href = a["href"]
 
-        # ✅ MAIN FIX
-        if "/download/attachment-conclusion/" in href:
-            return "https://www.taxsutra.com" + href
-
-        # fallback (optional)
-        elif "/download/attachment/" in href:
-            return "https://www.taxsutra.com" + href
+        if "/download/attachment" in href:
+            if href.startswith("http"):
+                return href
+            else:
+                return "https://www.taxsutra.com" + href
 
     return ""
 
@@ -162,15 +160,19 @@ def run_rpa(keyword, start_date, end_date, industries):
 
             li_items = card.select("ul li")
 
-            citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
-            taxpayer = li_items[2].text.strip() if len(li_items) > 2 else "NA"
-
-            # safer date extraction
+            # ✅ DATE FIX
             try:
-                date = card.select_one(".views-field-field-date-of-ruling").text.strip()
+                date = li_items[0].text.strip()
             except:
                 date = "NA"
 
+            # ✅ CITATION
+            citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
+
+            # ✅ TAXPAYER CLEAN
+            taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
+
+            # GET CASE PAGE
             case_page = requests.get(link, headers=headers)
             pdf_link = extract_pdf_link(case_page.text)
 
