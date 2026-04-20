@@ -127,16 +127,13 @@ def build_url(keyword, start_date, end_date, industries):
 
 # ---------------- PDF LINK ----------------
 def extract_pdf_link(html):
-    soup = BeautifulSoup(html, "html.parser")
+    import re
 
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "/download/attachment" in href:
-            return "https://www.taxsutra.com" + href
+    # 🔥 Find ALL download attachment patterns
+    matches = re.findall(r'/download/attachment/\d+/\d+', html)
 
-    match = re.search(r'/download/attachment/\d+/\d+', html)
-    if match:
-        return "https://www.taxsutra.com" + match.group()
+    if matches:
+        return "https://www.taxsutra.com" + matches[0]
 
     return ""
 
