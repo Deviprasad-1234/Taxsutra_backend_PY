@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 import re
+import os
 
 app = Flask(__name__)
 
@@ -102,6 +103,25 @@ INDUSTRY_MAP = {
     "Waterway": 52585
 }
 
+# ---------------- LOGIN SESSION ----------------
+def login_session():
+    session = requests.Session()
+
+    login_url = "https://www.taxsutra.com/user/login"
+
+    payload = {
+        "name": os.getenv("TAXSUTRA_EMAIL"),
+        "pass": os.getenv("TAXSUTRA_PASSWORD"),
+        "form_id": "user_login_form"
+    }
+
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    session.post(login_url, data=payload, headers=headers)
+
+    return session
+
+
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
     base_url = "https://www.taxsutra.com/tp/alert-rulings?"
@@ -127,14 +147,9 @@ def build_url(keyword, start_date, end_date, industries):
 
 # ---------------- PDF LINK ----------------
 def extract_pdf_link(html):
-    import re
-
-    # 🔥 Find ALL download attachment patterns
     matches = re.findall(r'/download/attachment/\d+/\d+', html)
-
     if matches:
         return "https://www.taxsutra.com" + matches[0]
-
     return ""
 
 
@@ -148,8 +163,11 @@ def extract_date(html):
 def run_rpa(keyword, start_date, end_date, industries):
     headers = {"User-Agent": "Mozilla/5.0"}
 
+    session = login_session()
+
     url = build_url(keyword, start_date, end_date, industries)
-    response = requests.get(url, headers=headers)
+
+    response = session.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
 
     cards = soup.select("div.views-row")
@@ -167,7 +185,7 @@ def run_rpa(keyword, start_date, end_date, industries):
             citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
             taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
 
-            case_page = requests.get(link, headers=headers)
+            case_page = session.get(link, headers=headers)
             html = case_page.text
 
             pdf_link = extract_pdf_link(html)
