@@ -2,8 +2,6 @@ from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
-import pdfplumber
-import io
 
 app = Flask(__name__)
 
@@ -125,30 +123,24 @@ def build_url(keyword, start_date, end_date, industries):
 
     return url
 
-# ---------------- PDF LINK ----------------
+
+# ---------------- PDF LINK (FINAL FIX) ----------------
 def extract_pdf_link(html):
     soup = BeautifulSoup(html, "html.parser")
+
     for a in soup.find_all("a", href=True):
-        if "/download/attachment/" in a["href"]:
-            return "https://www.taxsutra.com" + a["href"]
-    return None
+        href = a["href"]
 
-# ---------------- PDF TEXT ----------------
-def extract_pdf_text(pdf_url):
-    try:
-        response = requests.get(pdf_url, headers={"User-Agent": "Mozilla/5.0"})
-        if response.status_code != 200:
-            return None
+        # ✅ MAIN FIX
+        if "/download/attachment-conclusion/" in href:
+            return "https://www.taxsutra.com" + href
 
-        text = ""
-        with pdfplumber.open(io.BytesIO(response.content)) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
+        # fallback (optional)
+        elif "/download/attachment/" in href:
+            return "https://www.taxsutra.com" + href
 
-        return text[:150000]  # limit to avoid overload
+    return ""
 
-    except:
-        return None
 
 # ---------------- MAIN ----------------
 def run_rpa(keyword, start_date, end_date, industries):
@@ -161,7 +153,9 @@ def run_rpa(keyword, start_date, end_date, industries):
     cards = soup.select("div.views-row")
     results = []
 
-    for card in cards[:10]:  # safe limit
+    limit = 15 if len(cards) > 15 else len(cards)
+
+    for card in cards[:limit]:
         try:
             case = card.select_one("h3 a")
             link = "https://www.taxsutra.com" + case["href"]
@@ -171,23 +165,25 @@ def run_rpa(keyword, start_date, end_date, industries):
             citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
             taxpayer = li_items[2].text.strip() if len(li_items) > 2 else "NA"
 
-            date = card.select_one("div").text.strip()
+            # safer date extraction
+            try:
+                date = card.select_one(".views-field-field-date-of-ruling").text.strip()
+            except:
+                date = "NA"
 
             case_page = requests.get(link, headers=headers)
             pdf_link = extract_pdf_link(case_page.text)
-
-            pdf_text = extract_pdf_text(pdf_link) if pdf_link else None
 
             results.append({
                 "taxpayer": taxpayer,
                 "citation": citation,
                 "date": date,
-                "link": link,
-                "pdf_link": pdf_link,
-                "pdf_text": pdf_text
+                "case_link": link,
+                "pdf_link": pdf_link
             })
 
-        except:
+        except Exception as e:
+            print("Error:", e)
             continue
 
     return {
@@ -196,10 +192,12 @@ def run_rpa(keyword, start_date, end_date, industries):
         "data": results
     }
 
+
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
     return "TaxSutra Backend Running 🚀"
+
 
 @app.route("/run", methods=["POST"])
 def run():
@@ -220,5 +218,7 @@ def run():
 
     return jsonify(result)
 
+
+# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
