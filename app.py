@@ -2,10 +2,12 @@ from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+import pdfplumber
+import io
 
 app = Flask(__name__)
 
-# ---------------- INDUSTRY MAP ----------------
+# ---------------- FULL INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
     "Adhesives": 71768,
     "Advisory / Consultancy": 50188,
@@ -104,14 +106,10 @@ INDUSTRY_MAP = {
 # ---------------- BUILD URL ----------------
 def build_url(keyword, start_date, end_date, industries):
     base_url = "https://www.taxsutra.com/tp/alert-rulings?"
-
     params = {}
 
-    # Optional keyword
     if keyword:
         params["tp_ruling_search_api_fulltext"] = keyword
-
-    # Optional dates
     if start_date:
         params["field_date_of_ruling_value"] = start_date
     if end_date:
@@ -119,7 +117,6 @@ def build_url(keyword, start_date, end_date, industries):
 
     url = base_url + urllib.parse.urlencode(params)
 
-    # Optional industries (single/multiple)
     if industries:
         for ind in industries:
             ind_id = INDUSTRY_MAP.get(ind)
@@ -128,55 +125,76 @@ def build_url(keyword, start_date, end_date, industries):
 
     return url
 
-# ---------------- MAIN SCRAPER ----------------
-def run_rpa(keyword, start_date, end_date, industries):
+# ---------------- PDF LINK ----------------
+def extract_pdf_link(html):
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        if "/download/attachment/" in a["href"]:
+            return "https://www.taxsutra.com" + a["href"]
+    return None
+
+# ---------------- PDF TEXT ----------------
+def extract_pdf_text(pdf_url):
     try:
-        url = build_url(keyword, start_date, end_date, industries)
+        response = requests.get(pdf_url, headers={"User-Agent": "Mozilla/5.0"})
+        if response.status_code != 200:
+            return None
 
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
+        text = ""
+        with pdfplumber.open(io.BytesIO(response.content)) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
 
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
+        return text[:150000]  # limit to avoid overload
 
-        cards = soup.select("div.views-row")
+    except:
+        return None
 
-        results = []
+# ---------------- MAIN ----------------
+def run_rpa(keyword, start_date, end_date, industries):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    url = build_url(keyword, start_date, end_date, industries)
 
-        for card in cards[:15]:
-            try:
-                case = card.select_one("h3 a")
-                link = "https://www.taxsutra.com" + case["href"]
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-                li_items = card.select("ul li")
+    cards = soup.select("div.views-row")
+    results = []
 
-                citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
-                taxpayer = li_items[2].text.strip() if len(li_items) > 2 else "NA"
+    for card in cards[:10]:  # safe limit
+        try:
+            case = card.select_one("h3 a")
+            link = "https://www.taxsutra.com" + case["href"]
 
-                date = card.select_one("div").text.strip()
+            li_items = card.select("ul li")
 
-                results.append({
-                    "taxpayer": taxpayer,
-                    "citation": citation,
-                    "date": date,
-                    "link": link
-                })
+            citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
+            taxpayer = li_items[2].text.strip() if len(li_items) > 2 else "NA"
 
-            except:
-                continue
+            date = card.select_one("div").text.strip()
 
-        return {
-            "status": "success",
-            "count": len(results),
-            "data": results
-        }
+            case_page = requests.get(link, headers=headers)
+            pdf_link = extract_pdf_link(case_page.text)
 
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+            pdf_text = extract_pdf_text(pdf_link) if pdf_link else None
+
+            results.append({
+                "taxpayer": taxpayer,
+                "citation": citation,
+                "date": date,
+                "link": link,
+                "pdf_link": pdf_link,
+                "pdf_text": pdf_text
+            })
+
+        except:
+            continue
+
+    return {
+        "status": "success",
+        "count": len(results),
+        "data": results
+    }
 
 # ---------------- ROUTES ----------------
 @app.route("/")
@@ -185,31 +203,22 @@ def home():
 
 @app.route("/run", methods=["POST"])
 def run():
-    try:
-        data = request.get_json(silent=True) or request.form
+    data = request.get_json(silent=True) or request.form
 
-        keyword = data.get("keyword", "").strip()
-        start_date = data.get("start_date", "").strip()
-        end_date = data.get("end_date", "").strip()
+    keyword = data.get("keyword", "").strip()
+    start_date = data.get("start_date", "").strip()
+    end_date = data.get("end_date", "").strip()
 
-        industries = data.get("industries", [])
+    industries = data.get("industries", [])
 
-        # Handle all cases: none / single / multiple
-        if isinstance(industries, str):
-            industries = [industries]
-        elif not industries:
-            industries = []
+    if isinstance(industries, str):
+        industries = [industries]
+    elif not industries:
+        industries = []
 
-        result = run_rpa(keyword, start_date, end_date, industries)
+    result = run_rpa(keyword, start_date, end_date, industries)
 
-        return jsonify(result)
+    return jsonify(result)
 
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        })
-
-# ---------------- START ----------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
