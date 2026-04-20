@@ -5,7 +5,7 @@ import urllib.parse
 
 app = Flask(__name__)
 
-# ---------------- FULL INDUSTRY MAP ----------------
+# ---------------- INDUSTRY MAP ----------------
 INDUSTRY_MAP = {
     "Adhesives": 71768,
     "Advisory / Consultancy": 50188,
@@ -124,18 +124,23 @@ def build_url(keyword, start_date, end_date, industries):
     return url
 
 
-# ---------------- PDF LINK (FINAL FIX) ----------------
+# ---------------- PDF LINK FIX ----------------
 def extract_pdf_link(html):
     soup = BeautifulSoup(html, "html.parser")
 
     for a in soup.find_all("a", href=True):
         href = a["href"]
+        text = a.text.lower()
+
+        if "download" in text and "judgement" in text:
+            if href.startswith("http"):
+                return href
+            return "https://www.taxsutra.com" + href
 
         if "/download/attachment" in href:
             if href.startswith("http"):
                 return href
-            else:
-                return "https://www.taxsutra.com" + href
+            return "https://www.taxsutra.com" + href
 
     return ""
 
@@ -160,11 +165,13 @@ def run_rpa(keyword, start_date, end_date, industries):
 
             li_items = card.select("ul li")
 
-            # ✅ DATE FIX
-            try:
-                date = li_items[0].text.strip()
-            except:
-                date = "NA"
+            # ✅ DATE FIX (robust)
+            date = "NA"
+            for li in li_items:
+                txt = li.text.strip()
+                if any(m in txt for m in ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]):
+                    date = txt
+                    break
 
             # ✅ CITATION
             citation = li_items[1].text.strip() if len(li_items) > 1 else "NA"
@@ -172,7 +179,7 @@ def run_rpa(keyword, start_date, end_date, industries):
             # ✅ TAXPAYER CLEAN
             taxpayer = li_items[2].text.replace("Tax Payer :", "").strip() if len(li_items) > 2 else "NA"
 
-            # GET CASE PAGE
+            # CASE PAGE FETCH
             case_page = requests.get(link, headers=headers)
             pdf_link = extract_pdf_link(case_page.text)
 
